@@ -14,6 +14,7 @@ pub enum ConstantPoolEntry {
     MethodHandle(u8, u16),
     MethodTypeInfo(u16),
     InvokeDynamicInfo(u16, u16),
+    Empty // Used to represent the empty space after a Double or a Long
 }
 
 pub struct Class {

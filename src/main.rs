@@ -27,8 +27,22 @@ fn main() {
     let constant_pool_count = read_u2(&data, &mut index).expect("Expected Constant Pool Count") as usize;
     println!("constant pool count: {}", constant_pool_count);
     let mut constant_pool: ConstantPool = Vec::with_capacity(constant_pool_count);
+
+
+    let mut should_put_empty = false;
     for _i in 0..constant_pool_count - 1 {
-        constant_pool.push(read_constant_pool_entry(&data, &mut index));
+        if should_put_empty {
+            constant_pool.push(ConstantPoolEntry::Empty);
+            should_put_empty = false;
+        } else {
+            let entry = read_constant_pool_entry(&data, &mut index);
+            if matches!(entry, ConstantPoolEntry::DoubleInfo(_)) || matches!(entry, ConstantPoolEntry::LongInfo(_)) {
+                should_put_empty = true;
+            }
+
+            constant_pool.push(entry);
+        }
+
         // println!("{:02}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
     }
 

@@ -77,7 +77,7 @@ pub fn read_length_and_utf8(buffer: &Vec<u8>, index: &mut usize) -> Option<Strin
 }
 
 
-pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> crate::ConstantPoolEntry {
+pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> ConstantPoolEntry {
     let tag = read_u1(buffer, index).expect("Expected Constant Pool Tag");
     match tag {
         7 => ConstantPoolEntry::Class(read_u2(buffer, index).expect("Expected Name Index")),
