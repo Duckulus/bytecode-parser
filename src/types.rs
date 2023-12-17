@@ -17,5 +17,7 @@ pub enum ConstantPoolEntry {
 }
 
 pub struct Class {
-    name: String,
+    pub name: String,
 }
+
+pub type ConstantPool = Vec<ConstantPoolEntry>;

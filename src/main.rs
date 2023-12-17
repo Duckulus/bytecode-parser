@@ -26,14 +26,20 @@ fn main() {
 
     let constant_pool_count = read_u2(&data, &mut index).expect("Expected Constant Pool Count") as usize;
     println!("constant pool count: {}", constant_pool_count);
-    let mut constant_pool_entries: Vec<ConstantPoolEntry> = Vec::with_capacity(constant_pool_count);
+    let mut constant_pool: ConstantPool = Vec::with_capacity(constant_pool_count);
     for _i in 0..constant_pool_count - 1 {
-        constant_pool_entries.push(read_constant_pool_entry(&data, &mut index));
-        // println!("{:02}. {:?}", _i + 1, constant_pool_entries.get(i).unwrap());
+        constant_pool.push(read_constant_pool_entry(&data, &mut index));
+        // println!("{:02}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
     }
 
     let access_flags_mask = read_u2(&data, &mut index).expect("Expected Access Flags");
     println!("access flags: {}", parse_access_flags(access_flags_mask).join(", "));
+
+    let this_class = read_class(&data, &mut index, &constant_pool).expect("Expected This Class");
+    println!("class name: {}", this_class.name);
+
+    let super_class = read_class(&data, &mut index, &constant_pool).expect("Expected Super Class");
+    println!("super class name: {}", super_class.name);
 }
 
 fn parse_args() -> String {
