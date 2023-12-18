@@ -80,39 +80,51 @@ pub fn read_length_and_utf8(buffer: &Vec<u8>, index: &mut usize) -> Option<Strin
 pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> ConstantPoolEntry {
     let tag = read_u1(buffer, index).expect("Expected Constant Pool Tag");
     match tag {
-        7 => ConstantPoolEntry::Class(read_u2(buffer, index).expect("Expected Name Index")),
+        7 => ConstantPoolEntry::Class { name_index: read_u2(buffer, index).expect("Expected Name Index") },
 
-        9 => ConstantPoolEntry::Fieldref(read_u2(buffer, index).expect("Expected Class Index"),
-                                                read_u2(buffer, index).expect("Expected Name And Type Index")),
+        9 => ConstantPoolEntry::Fieldref {
+            class_index: read_u2(buffer, index).expect("Expected Class Index"),
+            name_and_type_index: read_u2(buffer, index).expect("Expected Name And Type Index"),
+        },
 
-        10 => ConstantPoolEntry::Methodref(read_u2(buffer, index).expect("Expected Class Index"),
-                                                  read_u2(buffer, index).expect("Expected Name And Type Index")),
+        10 => ConstantPoolEntry::Methodref {
+            class_index: read_u2(buffer, index).expect("Expected Class Index"),
+            name_and_type_index: read_u2(buffer, index).expect("Expected Name And Type Index"),
+        },
 
-        11 => ConstantPoolEntry::InterfaceMethodref(read_u2(buffer, index).expect("Expected Class Index"),
-                                                           read_u2(buffer, index).expect("Expected Name And Type Index")),
+        11 => ConstantPoolEntry::InterfaceMethodref {
+            class_index: read_u2(buffer, index).expect("Expected Class Index"),
+            name_and_type_index: read_u2(buffer, index).expect("Expected Name And Type Index"),
+        },
 
-        8 => ConstantPoolEntry::StringInfo(read_u2(buffer, index).expect("Expected String Index")),
+        8 => ConstantPoolEntry::StringInfo { string_index: read_u2(buffer, index).expect("Expected String Index") },
 
-        3 => ConstantPoolEntry::IntegerInfo(read_u4(buffer, index).expect("Expected Integer")),
+        3 => ConstantPoolEntry::IntegerInfo { value: read_u4(buffer, index).expect("Expected Integer") },
 
-        4 => ConstantPoolEntry::FloatInfo(read_f4(buffer, index).expect("Expected Float")),
+        4 => ConstantPoolEntry::FloatInfo { value: read_f4(buffer, index).expect("Expected Float") },
 
-        5 => ConstantPoolEntry::LongInfo(read_u8(buffer, index).expect("Expected Long")),
+        5 => ConstantPoolEntry::LongInfo { value: read_u8(buffer, index).expect("Expected Long") },
 
-        6 => ConstantPoolEntry::DoubleInfo(read_f8(buffer, index).expect("Expected Double")),
+        6 => ConstantPoolEntry::DoubleInfo { value: read_f8(buffer, index).expect("Expected Double") },
 
-        12 => ConstantPoolEntry::NameAndTypeInfo(read_u2(buffer, index).expect("Expected Name Index"),
-                                                        read_u2(buffer, index).expect("Expected Descriptor Index")),
+        12 => ConstantPoolEntry::NameAndTypeInfo {
+            name_index: read_u2(buffer, index).expect("Expected Name Index"),
+            descriptor_index: read_u2(buffer, index).expect("Expected Descriptor Index"),
+        },
 
-        1 => ConstantPoolEntry::Utf8Info(read_length_and_utf8(buffer, index).expect("Expected String")),
+        1 => ConstantPoolEntry::Utf8Info { value: read_length_and_utf8(buffer, index).expect("Expected String") },
 
-        15 => ConstantPoolEntry::MethodHandle(read_u1(buffer, index).expect("Expected Reference Kind"),
-                                                     read_u2(buffer, index).expect("Expected Reference Index")),
+        15 => ConstantPoolEntry::MethodHandle {
+            reference_kind: read_u1(buffer, index).expect("Expected Reference Kind"),
+            reference_index: read_u2(buffer, index).expect("Expected Reference Index"),
+        },
 
-        16 => ConstantPoolEntry::MethodTypeInfo(read_u2(buffer, index).expect("Expected Descriptor Index")),
+        16 => ConstantPoolEntry::MethodTypeInfo { descriptor_index: read_u2(buffer, index).expect("Expected Descriptor Index") },
 
-        18 => ConstantPoolEntry::InvokeDynamicInfo(read_u2(buffer, index).expect("Expected Bootstrap Method Attr Index"),
-                                                          read_u2(buffer, index).expect("Expected Name And Type Index")),
+        18 => ConstantPoolEntry::InvokeDynamicInfo {
+            bootstrap_method_attr_index: read_u2(buffer, index).expect("Expected Bootstrap Method Attr Index"),
+            name_and_type_index: read_u2(buffer, index).expect("Expected Name And Type Index"),
+        },
 
         _ => panic!("Invalid Constant Pool Tag")
     }
@@ -120,8 +132,8 @@ pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> Constant
 
 pub fn read_class(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Option<Class> {
     let this_class_index = read_u2(buffer, index).expect("Expected This Class Index") as usize;
-    if let ConstantPoolEntry::Class(name_index) = constant_pool.get(this_class_index - 1).unwrap() {
-        if let ConstantPoolEntry::Utf8Info(value) = constant_pool.get(*name_index as usize - 1).unwrap() {
+    if let ConstantPoolEntry::Class { name_index } = constant_pool.get(this_class_index - 1).unwrap() {
+        if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(*name_index as usize - 1).unwrap() {
             Some(Class {
                 name: value.to_owned()
             })

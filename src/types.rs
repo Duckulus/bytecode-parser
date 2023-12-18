@@ -1,20 +1,20 @@
 #[derive(Debug)]
 pub enum ConstantPoolEntry {
-    Class(u16),
-    Fieldref(u16, u16),
-    Methodref(u16, u16),
-    InterfaceMethodref(u16, u16),
-    StringInfo(u16),
-    IntegerInfo(u32),
-    FloatInfo(f32),
-    LongInfo(u64),
-    DoubleInfo(f64),
-    NameAndTypeInfo(u16, u16),
-    Utf8Info(String),
-    MethodHandle(u8, u16),
-    MethodTypeInfo(u16),
-    InvokeDynamicInfo(u16, u16),
-    Empty // Used to represent the empty space after a Double or a Long
+    Class { name_index: u16 },
+    Fieldref { class_index: u16, name_and_type_index: u16 },
+    Methodref { class_index: u16, name_and_type_index: u16 },
+    InterfaceMethodref { class_index: u16, name_and_type_index: u16 },
+    StringInfo { string_index: u16 },
+    IntegerInfo { value: u32 },
+    FloatInfo { value: f32 },
+    LongInfo { value: u64 },
+    DoubleInfo { value: f64 },
+    NameAndTypeInfo { name_index: u16, descriptor_index: u16 },
+    Utf8Info { value: String },
+    MethodHandle { reference_kind: u8, reference_index: u16 },
+    MethodTypeInfo { descriptor_index: u16 },
+    InvokeDynamicInfo { bootstrap_method_attr_index: u16, name_and_type_index: u16 },
+    Empty, // Used to represent the empty space after a Double or a Long
 }
 
 pub struct Class {

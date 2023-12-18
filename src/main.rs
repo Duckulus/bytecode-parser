@@ -36,14 +36,14 @@ fn main() {
             should_put_empty = false;
         } else {
             let entry = read_constant_pool_entry(&data, &mut index);
-            if matches!(entry, ConstantPoolEntry::DoubleInfo(_)) || matches!(entry, ConstantPoolEntry::LongInfo(_)) {
+            if matches!(entry, ConstantPoolEntry::DoubleInfo{value: _}) || matches!(entry, ConstantPoolEntry::LongInfo{value: _}) {
                 should_put_empty = true;
             }
 
             constant_pool.push(entry);
         }
 
-        // println!("{:02}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
+        println!("{:02}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
     }
 
     let access_flags_mask = read_u2(&data, &mut index).expect("Expected Access Flags");
