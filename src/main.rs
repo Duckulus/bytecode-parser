@@ -1,7 +1,6 @@
 use std::env;
 
 use crate::reader::*;
-use crate::types::*;
 
 mod reader;
 mod types;
@@ -24,27 +23,8 @@ fn main() {
     println!("minor: {}", minor);
     println!("major: {}", major);
 
-    let constant_pool_count = read_u2(&data, &mut index).expect("Expected Constant Pool Count") as usize;
-    println!("constant pool count: {}", constant_pool_count);
-    let mut constant_pool: ConstantPool = Vec::with_capacity(constant_pool_count);
-
-
-    let mut should_put_empty = false;
-    for _i in 0..constant_pool_count - 1 {
-        if should_put_empty {
-            constant_pool.push(ConstantPoolEntry::Empty);
-            should_put_empty = false;
-        } else {
-            let entry = read_constant_pool_entry(&data, &mut index);
-            if matches!(entry, ConstantPoolEntry::DoubleInfo{value: _}) || matches!(entry, ConstantPoolEntry::LongInfo{value: _}) {
-                should_put_empty = true;
-            }
-
-            constant_pool.push(entry);
-        }
-
-        println!("{:02}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
-    }
+    let constant_pool = read_constant_pool(&data, &mut index);
+    println!("constant pool count: {}", constant_pool.len() + 1);
 
     let access_flags_mask = read_u2(&data, &mut index).expect("Expected Access Flags");
     println!("access flags: {}", parse_access_flags(access_flags_mask).join(", "));
@@ -54,6 +34,10 @@ fn main() {
 
     let super_class = read_class(&data, &mut index, &constant_pool).expect("Expected Super Class");
     println!("super class name: {}", super_class.name);
+
+    let interfaces = read_interfaces(&data, &mut index, &constant_pool);
+    let interface_names: Vec<String> = interfaces.iter().map(|class| class.name.clone()).collect();
+    println!("implements {} interfaces: {{{}}}", interfaces.len(), interface_names.join(", "))
 }
 
 fn parse_args() -> String {

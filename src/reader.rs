@@ -14,6 +14,46 @@ pub fn read_file(filename: &String) -> Vec<u8> {
     buffer
 }
 
+pub fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize) -> Vec<ConstantPoolEntry> {
+    let constant_pool_count = read_u2(buffer, index).expect("Expected Constant Pool Count") as usize;
+    let mut constant_pool: ConstantPool = Vec::with_capacity(constant_pool_count - 1);
+
+
+    let mut should_put_empty = false;
+    for _i in 0..constant_pool_count - 1 {
+        if should_put_empty {
+            constant_pool.push(ConstantPoolEntry::Empty);
+            should_put_empty = false;
+        } else {
+            let entry = read_constant_pool_entry(buffer, index);
+            if matches!(entry, ConstantPoolEntry::DoubleInfo{value: _}) || matches!(entry, ConstantPoolEntry::LongInfo{value: _}) {
+                should_put_empty = true;
+            }
+
+            constant_pool.push(entry);
+        }
+    }
+    constant_pool
+}
+
+pub fn read_interfaces(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<Class> {
+    let interfaces_count = read_u2(buffer, index).expect("Expected Interface Count") as usize;
+    let mut interfaces: Vec<Class> = Vec::with_capacity(interfaces_count);
+    for _ in 0..interfaces_count {
+        let index = read_u2(buffer, index).expect("Expected Interface Index") as usize;
+        if let ConstantPoolEntry::Class { name_index } = constant_pool.get(index - 1).expect("Expected Class but went out of bounds") {
+            if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(*name_index as usize - 1).expect("Exptected Utf8 but went out of bounds") {
+                interfaces.push(Class { name: value.to_owned() })
+            } else {
+                panic!("Expected Class Name");
+            }
+        } else {
+            panic!("Expected Class Info");
+        }
+    }
+    interfaces
+}
+
 pub fn read_u1(buffer: &Vec<u8>, index: &mut usize) -> Option<u8> {
     if *index > (buffer.len() - 1) {
         None

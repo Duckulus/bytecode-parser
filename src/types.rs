@@ -17,6 +17,7 @@ pub enum ConstantPoolEntry {
     Empty, // Used to represent the empty space after a Double or a Long
 }
 
+#[derive(Debug)]
 pub struct Class {
     pub name: String,
 }
