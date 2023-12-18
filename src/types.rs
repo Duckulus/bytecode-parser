@@ -1,3 +1,5 @@
+pub type ConstantPool = Vec<ConstantPoolEntry>;
+
 #[derive(Debug)]
 pub enum ConstantPoolEntry {
     Class { name_index: u16 },
@@ -22,4 +24,38 @@ pub struct Class {
     pub name: String,
 }
 
-pub type ConstantPool = Vec<ConstantPoolEntry>;
+#[derive(Debug)]
+pub struct Field<'a> {
+    pub access_flags: Vec<String>,
+    pub name: String,
+    pub descriptor: String,
+    pub attributes: Vec<Attribute<'a>>,
+}
+
+#[derive(Debug)]
+pub enum Attribute<'a> {
+    ConstantValue { value: &'a ConstantPoolEntry },
+    Synthetic,
+    Signature { signature: String },
+    Deprecated,
+    RuntimeVisibleAnnotations { annotations: Vec<Annotation<'a>> },
+    RuntimeInvisibleAnnotations { annotations: Vec<Annotation<'a>> },
+}
+
+#[derive(Debug)]
+pub struct Annotation<'a> {
+    pub type_name: String,
+    pub element_value_pairs: Vec<ElementValuePair<'a>>,
+}
+
+#[derive(Debug)]
+pub struct ElementValuePair<'a>(pub String, pub ElementValue<'a>);
+
+#[derive(Debug)]
+pub enum ElementValue<'a> {
+    ConstValue { value: &'a ConstantPoolEntry },
+    EnumConstValue { type_name: String, const_name: String },
+    ClassInfo { descriptor: String },
+    AnnotationValue { annotation: Annotation<'a> },
+    ArrayValue { elements: Vec<ElementValue<'a>> },
+}

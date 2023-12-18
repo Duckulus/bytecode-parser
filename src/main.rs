@@ -20,8 +20,7 @@ fn main() {
 
     let minor = read_u2(&data, &mut index).expect("Expected Minor");
     let major = read_u2(&data, &mut index).expect("Expected Major");
-    println!("minor: {}", minor);
-    println!("major: {}", major);
+    println!("Class Version {major}.{minor}");
 
     let constant_pool = read_constant_pool(&data, &mut index);
     println!("constant pool count: {}", constant_pool.len() + 1);
@@ -37,7 +36,10 @@ fn main() {
 
     let interfaces = read_interfaces(&data, &mut index, &constant_pool);
     let interface_names: Vec<String> = interfaces.iter().map(|class| class.name.clone()).collect();
-    println!("implements {} interfaces: {{{}}}", interfaces.len(), interface_names.join(", "))
+    println!("implements {} interfaces: {{{}}}", interfaces.len(), interface_names.join(", "));
+
+    let fields = read_fields(&data, &mut index, &constant_pool);
+    println!("fields: {:#?}", fields);
 }
 
 fn parse_args() -> String {

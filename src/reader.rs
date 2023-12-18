@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 
-use crate::types::{Class, ConstantPool, ConstantPoolEntry};
+use crate::types::{Annotation, Attribute, Class, ConstantPool, ConstantPoolEntry, ElementValue, ElementValuePair, Field};
 
 pub fn read_file(filename: &String) -> Vec<u8> {
     let mut f = File::open(filename).expect("Could not read file");
@@ -32,6 +32,7 @@ pub fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize) -> Vec<ConstantPo
 
             constant_pool.push(entry);
         }
+        println!("{}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
     }
     constant_pool
 }
@@ -52,6 +53,187 @@ pub fn read_interfaces(buffer: &Vec<u8>, index: &mut usize, constant_pool: &Cons
         }
     }
     interfaces
+}
+
+pub fn read_fields<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Field<'a>> {
+    let fields_count = read_u2(buffer, index).expect("Expected Fields Count") as usize;
+    let mut fields: Vec<Field> = Vec::with_capacity(fields_count);
+    for _ in 0..fields_count {
+        let flag_mask = read_u2(buffer, index).expect("Expected Element Flags");
+        let access_flags = parse_field_flags(flag_mask);
+
+        let name_index = read_u2(buffer, index).expect("Expected Name Index");
+        let name = read_utf8_from_constant_pool(constant_pool, name_index).expect("Expected Utf8");
+
+        let descriptor_index = read_u2(buffer, index).expect("Expected Descriptor Index");
+        let descriptor = read_utf8_from_constant_pool(constant_pool, descriptor_index).expect("Expected Utf8");
+
+        let attributes = read_attributes(buffer, index, constant_pool);
+
+        fields.push(Field {
+            access_flags,
+            name,
+            descriptor,
+            attributes,
+        })
+    }
+    fields
+}
+
+pub fn read_utf8_from_constant_pool(constant_pool: &ConstantPool, index: u16) -> Option<String> {
+    if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(index as usize - 1).expect("Expected Utf8 but went out of bounds") {
+        Some(value.to_owned())
+    } else {
+        None
+    }
+}
+
+pub fn parse_field_flags(mask: u16) -> Vec<String> {
+    let mut flags: Vec<String> = Vec::new();
+    if mask & 0x0001 != 0 {
+        flags.push("public".to_string())
+    }
+    if mask & 0x0002 != 0 {
+        flags.push("private".to_string())
+    }
+    if mask & 0x0004 != 0 {
+        flags.push("protected".to_string())
+    }
+    if mask & 0x0008 != 0 {
+        flags.push("static".to_string())
+    }
+    if mask & 0x0010 != 0 {
+        flags.push("final".to_string())
+    }
+    if mask & 0x0040 != 0 {
+        flags.push("volatile".to_string())
+    }
+    if mask & 0x0080 != 0 {
+        flags.push("transient".to_string())
+    }
+    if mask & 0x1000 != 0 {
+        flags.push("synthetic".to_string())
+    }
+    if mask & 0x4000 != 0 {
+        flags.push("enum_element".to_string())
+    }
+    flags
+}
+
+pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Attribute<'a>> {
+    let attributes_count = read_u2(buffer, index).expect("Expected Attribute Count") as usize;
+    let mut attributes: Vec<Attribute> = Vec::with_capacity(attributes_count);
+    for _ in 0..attributes_count {
+        let name_index = read_u2(buffer, index).expect("Expected Attribute Name Index");
+        let name = read_utf8_from_constant_pool(constant_pool, name_index).expect("Expected Utf8");
+        read_u4(buffer, index).expect("Expected Attribute length");
+
+        let attribute = match name.as_str() {
+            "ConstantValue" => {
+                let constantvalue_index = read_u2(buffer, index).expect("Expected Constant Value Index") as usize;
+                Attribute::ConstantValue { value: constant_pool.get(constantvalue_index - 1).expect("Expected Constant Value") }
+            }
+
+            "Synthetic" => Attribute::Synthetic,
+
+            "Signature" => {
+                let signature_index = read_u2(buffer, index).expect("Expected Signature Index");
+                let signature = read_utf8_from_constant_pool(constant_pool, signature_index).expect("Expected Utf8");
+                Attribute::Signature { signature }
+            }
+
+            "Deprecated" => Attribute::Deprecated,
+
+            "RuntimeVisibleAnnotations" => {
+                Attribute::RuntimeVisibleAnnotations { annotations: read_annotations(buffer, index, constant_pool) }
+            }
+
+            "RuntimeInvisibleAnnotations" => {
+                Attribute::RuntimeInvisibleAnnotations { annotations: read_annotations(buffer, index, constant_pool) }
+            }
+
+            _ => panic!("Invalid Attribute Name: {}", name)
+        };
+
+        attributes.push(attribute);
+    }
+    attributes
+}
+
+pub fn read_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Annotation<'a>> {
+    let annotations_count = read_u2(buffer, index).expect("Expected Annotation Count") as usize;
+    let mut annotations: Vec<Annotation> = Vec::with_capacity(annotations_count);
+
+    for _ in 0..annotations_count {
+        annotations.push(read_annotation(buffer, index, constant_pool));
+    }
+
+    annotations
+}
+
+pub fn read_annotation<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Annotation<'a> {
+    let type_index = read_u2(buffer, index).expect("Expected Type Index");
+    let type_name = read_utf8_from_constant_pool(constant_pool, type_index).expect("Expected Utf8");
+
+    let element_value_pairs = read_element_value_pairs(buffer, index, constant_pool);
+
+    Annotation {
+        type_name,
+        element_value_pairs,
+    }
+}
+
+pub fn read_element_value_pairs<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<ElementValuePair<'a>> {
+    let pair_count = read_u2(buffer, index).expect("Expected Pair Count") as usize;
+    let mut pairs: Vec<ElementValuePair> = Vec::with_capacity(pair_count);
+
+    for _ in 0..pair_count {
+        let element_name_index = read_u2(buffer, index).expect("Expected Element Name Index");
+        let element_name = read_utf8_from_constant_pool(constant_pool, element_name_index).expect("Expected Utf8");
+        let element_value = read_element_value(buffer, index, constant_pool);
+        pairs.push(ElementValuePair(element_name, element_value));
+    }
+
+    pairs
+}
+
+pub fn read_element_value<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> ElementValue<'a> {
+    let tag = read_u1(buffer, index).expect("Expected Tag") as char;
+
+    match tag {
+        'B' | 'C' | 'D' | 'F' | 'I' | 'J' | 'S' | 'Z' | 's' => {
+            let const_value_index = read_u2(buffer, index).expect("Expected Const Value Index") as usize;
+            ElementValue::ConstValue { value: constant_pool.get(const_value_index - 1).expect("Expected Constant Pool Entry") }
+        }
+
+        'e' => {
+            let type_name_index = read_u2(buffer, index).expect("Expected Type Name Index");
+            let type_name = read_utf8_from_constant_pool(constant_pool, type_name_index).expect("Expected Utf8");
+
+            let const_name_index = read_u2(buffer, index).expect("Expected Const Name Index");
+            let const_name = read_utf8_from_constant_pool(constant_pool, const_name_index).expect("Expected Utf8");
+            ElementValue::EnumConstValue { type_name, const_name }
+        }
+
+        'c' => {
+            let class_info_index = read_u2(buffer, index).expect("Expected Class Info Index");
+            let class_info = read_utf8_from_constant_pool(constant_pool, class_info_index).expect("Expected Utf8");
+            ElementValue::ClassInfo { descriptor: class_info }
+        }
+
+        '@' => ElementValue::AnnotationValue { annotation: read_annotation(buffer, index, constant_pool) },
+
+        '[' => {
+            let num_values = read_u2(buffer, index).expect("Expected Array Value Count") as usize;
+            let mut elements: Vec<ElementValue> = Vec::with_capacity(num_values);
+
+            for _ in 0..num_values {
+                elements.push(read_element_value(buffer, index, constant_pool));
+            }
+            ElementValue::ArrayValue { elements }
+        }
+        _ => panic!("Invalid Element Value Tag: {}", tag)
+    }
 }
 
 pub fn read_u1(buffer: &Vec<u8>, index: &mut usize) -> Option<u8> {
