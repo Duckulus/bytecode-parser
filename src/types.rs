@@ -26,10 +26,47 @@ pub struct Class {
 
 #[derive(Debug)]
 pub struct Field<'a> {
-    pub access_flags: Vec<String>,
+    pub access_flags: Vec<FieldFlag>,
     pub name: String,
     pub descriptor: String,
     pub attributes: Vec<Attribute<'a>>,
+}
+
+#[derive(Debug)]
+pub enum FieldFlag {
+    AccPublic,
+    AccPrivate,
+    AccProtected,
+    AccStatic,
+    AccFinal,
+    AccVolatile,
+    AccTransient,
+    AccSynthetic,
+    AccEnum,
+}
+
+#[derive(Debug)]
+pub struct Method<'a> {
+    pub access_flags: Vec<MethodFlag>,
+    pub name: String,
+    pub descriptor: String,
+    pub attributes: Vec<Attribute<'a>>,
+}
+
+#[derive(Debug)]
+pub enum MethodFlag {
+    AccPublic,
+    AccPrivate,
+    AccProtected,
+    AccStatic,
+    AccFinal,
+    AccSynchronized,
+    AccBridge,
+    AccVarargs,
+    AccNative,
+    AccAbstract,
+    AccStrict,
+    AccSynthetic,
 }
 
 #[derive(Debug)]
@@ -40,6 +77,34 @@ pub enum Attribute<'a> {
     Deprecated,
     RuntimeVisibleAnnotations { annotations: Vec<Annotation<'a>> },
     RuntimeInvisibleAnnotations { annotations: Vec<Annotation<'a>> },
+    Code {
+        max_stack: u16,
+        max_locals: u16,
+        code: Vec<u8>,
+        exception_table: Vec<ExceptionHandler>,
+        attributes: Vec<Attribute<'a>>,
+    },
+    Exceptions { exceptions: Vec<Class> },
+    RuntimeVisibleParameterAnnotations { annotations: Vec<Vec<Annotation<'a>>> },
+    RuntimeInvisibleParameterAnnotations { annotations: Vec<Vec<Annotation<'a>>> },
+    AnnotationDefault { default_value: ElementValue<'a> },
+    LineNumberTable {
+        line_number_table: Vec<LineNumber>
+    },
+}
+
+#[derive(Debug)]
+pub struct LineNumber {
+    pub start_pc: u16,
+    pub line_number: u16,
+}
+
+#[derive(Debug)]
+pub struct ExceptionHandler {
+    pub start_pc: u16,
+    pub end_pc: u16,
+    pub handler_pc: u16,
+    pub catch_type: Option<Class>,
 }
 
 #[derive(Debug)]

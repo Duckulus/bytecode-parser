@@ -40,6 +40,9 @@ fn main() {
 
     let fields = read_fields(&data, &mut index, &constant_pool);
     println!("fields: {:#?}", fields);
+
+    let methods = read_methods(&data, &mut index, &constant_pool);
+    println!("methods: {:#?}", methods);
 }
 
 fn parse_args() -> String {
