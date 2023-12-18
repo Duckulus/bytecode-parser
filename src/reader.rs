@@ -193,7 +193,7 @@ pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
     for _ in 0..attributes_count {
         let name_index = read_u2(buffer, index).expect("Expected Attribute Name Index");
         let name = read_utf8_from_constant_pool(constant_pool, name_index).expect("Expected Utf8");
-        read_u4(buffer, index).expect("Expected Attribute length");
+        let size = read_u4(buffer, index).expect("Expected Attribute length") as usize;
 
         let attribute = match name.as_str() {
             "ConstantValue" => {
@@ -260,7 +260,27 @@ pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
                 Attribute::LineNumberTable { line_number_table: read_line_number_table(buffer, index) }
             }
 
-            _ => panic!("Invalid Attribute Name: {}", name)
+            "SourceFile" => {
+                let sourcefile_index = read_u2(buffer, index).expect("Expected Source File Index");
+                Attribute::SourceFile { source_file: read_utf8_from_constant_pool(constant_pool, sourcefile_index).expect("Expected Utf8") }
+            }
+
+            "NestMembers" => {
+                let classes_num = read_u2(buffer, index).expect("Expected Number of Classes") as usize;
+                let mut classes: Vec<Class> = Vec::with_capacity(classes_num);
+                for _ in 0..classes_num {
+                    if let Some(class) = read_class(buffer, index, constant_pool) {
+                        classes.push(class);
+                    }
+                }
+                Attribute::NestMembers { classes }
+            }
+
+            _ => {
+                println!("Ignoring attribute {}", name);
+                *index += size;
+                Attribute::Unimplemented
+            }
         };
 
         attributes.push(attribute);

@@ -149,6 +149,9 @@ pub enum Attribute<'a> {
     LineNumberTable {
         line_number_table: Vec<LineNumber>
     },
+    SourceFile { source_file: String },
+    NestMembers { classes: Vec<Class> },
+    Unimplemented // TODO remove
 }
 
 #[derive(Debug)]

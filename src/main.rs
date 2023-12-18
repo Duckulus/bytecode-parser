@@ -44,6 +44,10 @@ fn main() {
 
     let methods = read_methods(&data, &mut index, &constant_pool);
     print_methods(&methods);
+
+    let attributes = read_attributes(&data, &mut index, &constant_pool);
+
+    println!("Parsed {} bytes", index);
 }
 
 fn parse_args() -> String {
