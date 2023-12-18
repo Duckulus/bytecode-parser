@@ -1,22 +1,38 @@
-use std::fs;
-use std::fs::File;
-use std::io::Read;
+use crate::types::{AccessFlag, Annotation, Attribute, Class, ClassFile, ConstantPool, ConstantPoolEntry, ElementValue, ElementValuePair, ExceptionHandler, Field, FieldFlag, LineNumber, Method, MethodFlag};
 
-use crate::types::{AccessFlag, Annotation, Attribute, Class, ConstantPool, ConstantPoolEntry, ElementValue, ElementValuePair, ExceptionHandler, Field, FieldFlag, LineNumber, Method, MethodFlag};
+pub fn read_class_file<'a>(data: &Vec<u8>, constant_pool: &'a mut ConstantPool) -> ClassFile<'a> {
+    let mut index: usize = 0;
+    let magic = read_u4(data, &mut index).expect("Expected Magic");
+    let minor_version = read_u2(data, &mut index).expect("Expected Minor");
+    let major_version = read_u2(data, &mut index).expect("Expected Major");
+    read_constant_pool(data, &mut index, constant_pool);
+    let access_flags = read_access_flags(data, &mut index);
+    let this_class = read_class(data, &mut index, constant_pool).expect("Expected This Class");
+    let super_class = read_class(data, &mut index, constant_pool).expect("Expected Super Class");
+    let interfaces = read_interfaces(data, &mut index, constant_pool);
+    let fields = read_fields(data, &mut index, constant_pool);
+    let methods = read_methods(data, &mut index, constant_pool);
+    let attributes = read_attributes(data, &mut index, constant_pool);
 
-pub fn read_file(filename: &String) -> Vec<u8> {
-    let mut f = File::open(filename).expect("Could not read file");
-    let metadata = fs::metadata(filename).expect("Could not read metadata");
-    let size = metadata.len() as usize;
-    let mut buffer = vec![0; size];
-    f.read(&mut buffer).expect("Buffer overflow");
 
-    buffer
+    ClassFile {
+        magic,
+        minor_version,
+        major_version,
+        constant_pool,
+        access_flags,
+        this_class,
+        super_class,
+        interfaces,
+        fields,
+        methods,
+        attributes,
+    }
 }
 
-pub fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize) -> Vec<ConstantPoolEntry> {
+
+fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize, constant_pool: &mut ConstantPool) {
     let constant_pool_count = read_u2(buffer, index).expect("Expected Constant Pool Count") as usize;
-    let mut constant_pool: ConstantPool = Vec::with_capacity(constant_pool_count - 1);
 
 
     let mut should_put_empty = false;
@@ -33,16 +49,15 @@ pub fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize) -> Vec<ConstantPo
             constant_pool.push(entry);
         }
     }
-    constant_pool
 }
 
-pub fn read_interfaces(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<Class> {
+fn read_interfaces(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<Class> {
     let interfaces_count = read_u2(buffer, index).expect("Expected Interface Count") as usize;
     let mut interfaces: Vec<Class> = Vec::with_capacity(interfaces_count);
     for _ in 0..interfaces_count {
         let index = read_u2(buffer, index).expect("Expected Interface Index") as usize;
         if let ConstantPoolEntry::Class { name_index } = constant_pool.get(index - 1).expect("Expected Class but went out of bounds") {
-            if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(*name_index as usize - 1).expect("Exptected Utf8 but went out of bounds") {
+            if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(*name_index as usize - 1).expect("Expected Utf8 but went out of bounds") {
                 interfaces.push(Class { name: value.to_owned() })
             } else {
                 panic!("Expected Class Name");
@@ -54,7 +69,7 @@ pub fn read_interfaces(buffer: &Vec<u8>, index: &mut usize, constant_pool: &Cons
     interfaces
 }
 
-pub fn read_fields<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Field<'a>> {
+fn read_fields<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Field<'a>> {
     let fields_count = read_u2(buffer, index).expect("Expected Fields Count") as usize;
     let mut fields: Vec<Field> = Vec::with_capacity(fields_count);
     for _ in 0..fields_count {
@@ -79,7 +94,7 @@ pub fn read_fields<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a C
     fields
 }
 
-pub fn read_utf8_from_constant_pool(constant_pool: &ConstantPool, index: u16) -> Option<String> {
+fn read_utf8_from_constant_pool(constant_pool: &ConstantPool, index: u16) -> Option<String> {
     if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(index as usize - 1).expect("Expected Utf8 but went out of bounds") {
         Some(value.to_owned())
     } else {
@@ -87,7 +102,7 @@ pub fn read_utf8_from_constant_pool(constant_pool: &ConstantPool, index: u16) ->
     }
 }
 
-pub fn parse_field_flags(mask: u16) -> Vec<FieldFlag> {
+fn parse_field_flags(mask: u16) -> Vec<FieldFlag> {
     let mut flags: Vec<FieldFlag> = Vec::new();
     if mask & 0x0001 != 0 {
         flags.push(FieldFlag::AccPublic)
@@ -119,12 +134,12 @@ pub fn parse_field_flags(mask: u16) -> Vec<FieldFlag> {
     flags
 }
 
-pub fn read_methods<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Method<'a>> {
+fn read_methods<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Method<'a>> {
     let methods_count = read_u2(buffer, index).expect("Expected Method Count") as usize;
     let mut methods: Vec<Method> = Vec::with_capacity(methods_count);
 
     for _ in 0..methods_count {
-        let flag_mask = read_u2(buffer, index).expect("Expected Acces Flags");
+        let flag_mask = read_u2(buffer, index).expect("Expected Access Flags");
         let access_flags = parse_method_flags(flag_mask);
 
         let name_index = read_u2(buffer, index).expect("Expected Name Index");
@@ -146,7 +161,7 @@ pub fn read_methods<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a 
     methods
 }
 
-pub fn parse_method_flags(mask: u16) -> Vec<MethodFlag> {
+fn parse_method_flags(mask: u16) -> Vec<MethodFlag> {
     let mut flags: Vec<MethodFlag> = Vec::new();
     if mask & 0x0001 != 0 {
         flags.push(MethodFlag::AccPublic)
@@ -187,7 +202,7 @@ pub fn parse_method_flags(mask: u16) -> Vec<MethodFlag> {
     flags
 }
 
-pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Attribute<'a>> {
+fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Attribute<'a>> {
     let attributes_count = read_u2(buffer, index).expect("Expected Attribute Count") as usize;
     let mut attributes: Vec<Attribute> = Vec::with_capacity(attributes_count);
     for _ in 0..attributes_count {
@@ -197,8 +212,8 @@ pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
 
         let attribute = match name.as_str() {
             "ConstantValue" => {
-                let constantvalue_index = read_u2(buffer, index).expect("Expected Constant Value Index") as usize;
-                Attribute::ConstantValue { value: constant_pool.get(constantvalue_index - 1).expect("Expected Constant Value") }
+                let constant_value_index = read_u2(buffer, index).expect("Expected Constant Value Index") as usize;
+                Attribute::ConstantValue { value: constant_pool.get(constant_value_index - 1).expect("Expected Constant Value") }
             }
 
             "Synthetic" => Attribute::Synthetic,
@@ -261,8 +276,8 @@ pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
             }
 
             "SourceFile" => {
-                let sourcefile_index = read_u2(buffer, index).expect("Expected Source File Index");
-                Attribute::SourceFile { source_file: read_utf8_from_constant_pool(constant_pool, sourcefile_index).expect("Expected Utf8") }
+                let source_file_index = read_u2(buffer, index).expect("Expected Source File Index");
+                Attribute::SourceFile { source_file: read_utf8_from_constant_pool(constant_pool, source_file_index).expect("Expected Utf8") }
             }
 
             "NestMembers" => {
@@ -288,7 +303,7 @@ pub fn read_attributes<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
     attributes
 }
 
-pub fn read_exception_table(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<ExceptionHandler> {
+fn read_exception_table(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<ExceptionHandler> {
     let exception_table_length = read_u2(buffer, index).expect("Expected Exception Table Length");
     let mut exception_table: Vec<ExceptionHandler> = Vec::new();
     for _ in 0..exception_table_length {
@@ -299,13 +314,11 @@ pub fn read_exception_table(buffer: &Vec<u8>, index: &mut usize, constant_pool: 
         let catch_type: Option<Class>;
         if catch_type_index == 0 {
             catch_type = None;
+        } else if let ConstantPoolEntry::Class { name_index } = constant_pool.get(catch_type_index - 1).expect("Expected Constant Pool Entry") {
+            let class_name = read_utf8_from_constant_pool(constant_pool, *name_index).expect("Expected Utf8");
+            catch_type = Some(Class { name: class_name })
         } else {
-            if let ConstantPoolEntry::Class { name_index } = constant_pool.get(catch_type_index - 1).expect("Expected Constant Pool Entry") {
-                let class_name = read_utf8_from_constant_pool(constant_pool, *name_index).expect("Expected Utf8");
-                catch_type = Some(Class { name: class_name })
-            } else {
-                panic!("Catch Type must be a Class")
-            }
+            panic!("Catch Type must be a Class")
         };
 
         exception_table.push(ExceptionHandler {
@@ -318,8 +331,8 @@ pub fn read_exception_table(buffer: &Vec<u8>, index: &mut usize, constant_pool: 
     exception_table
 }
 
-pub fn read_exceptions(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<Class> {
-    let exceptions_number = read_u2(buffer, index).expect("Expected Expeption Number") as usize;
+fn read_exceptions(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Vec<Class> {
+    let exceptions_number = read_u2(buffer, index).expect("Expected Exception Number") as usize;
     let mut exceptions: Vec<Class> = Vec::with_capacity(exceptions_number);
 
     for _ in 0..exceptions_number {
@@ -335,7 +348,7 @@ pub fn read_exceptions(buffer: &Vec<u8>, index: &mut usize, constant_pool: &Cons
     exceptions
 }
 
-pub fn read_line_number_table(buffer: &Vec<u8>, index: &mut usize) -> Vec<LineNumber> {
+fn read_line_number_table(buffer: &Vec<u8>, index: &mut usize) -> Vec<LineNumber> {
     let line_number_count = read_u2(buffer, index).expect("Expected Line Number Count") as usize;
     let mut line_numbers: Vec<LineNumber> = Vec::with_capacity(line_number_count);
 
@@ -348,7 +361,7 @@ pub fn read_line_number_table(buffer: &Vec<u8>, index: &mut usize) -> Vec<LineNu
     line_numbers
 }
 
-pub fn read_parameter_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Vec<Annotation<'a>>> {
+fn read_parameter_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Vec<Annotation<'a>>> {
     let num_parameters = read_u1(buffer, index).expect("Expected Parameter Number") as usize;
     let mut parameter_annotations: Vec<Vec<Annotation>> = Vec::with_capacity(num_parameters);
 
@@ -359,7 +372,7 @@ pub fn read_parameter_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, const
     parameter_annotations
 }
 
-pub fn read_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Annotation<'a>> {
+fn read_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<Annotation<'a>> {
     let annotations_count = read_u2(buffer, index).expect("Expected Annotation Count") as usize;
     let mut annotations: Vec<Annotation> = Vec::with_capacity(annotations_count);
 
@@ -370,7 +383,7 @@ pub fn read_annotations<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: 
     annotations
 }
 
-pub fn read_annotation<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Annotation<'a> {
+fn read_annotation<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Annotation<'a> {
     let type_index = read_u2(buffer, index).expect("Expected Type Index");
     let type_name = read_utf8_from_constant_pool(constant_pool, type_index).expect("Expected Utf8");
 
@@ -382,7 +395,7 @@ pub fn read_annotation<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &
     }
 }
 
-pub fn read_element_value_pairs<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<ElementValuePair<'a>> {
+fn read_element_value_pairs<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> Vec<ElementValuePair<'a>> {
     let pair_count = read_u2(buffer, index).expect("Expected Pair Count") as usize;
     let mut pairs: Vec<ElementValuePair> = Vec::with_capacity(pair_count);
 
@@ -396,7 +409,7 @@ pub fn read_element_value_pairs<'a>(buffer: &Vec<u8>, index: &mut usize, constan
     pairs
 }
 
-pub fn read_element_value<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> ElementValue<'a> {
+fn read_element_value<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool: &'a ConstantPool) -> ElementValue<'a> {
     let tag = read_u1(buffer, index).expect("Expected Tag") as char;
 
     match tag {
@@ -435,7 +448,7 @@ pub fn read_element_value<'a>(buffer: &Vec<u8>, index: &mut usize, constant_pool
     }
 }
 
-pub fn read_u1(buffer: &Vec<u8>, index: &mut usize) -> Option<u8> {
+fn read_u1(buffer: &Vec<u8>, index: &mut usize) -> Option<u8> {
     if *index > (buffer.len() - 1) {
         None
     } else {
@@ -445,7 +458,7 @@ pub fn read_u1(buffer: &Vec<u8>, index: &mut usize) -> Option<u8> {
     }
 }
 
-pub fn read_u2(buffer: &Vec<u8>, index: &mut usize) -> Option<u16> {
+fn read_u2(buffer: &Vec<u8>, index: &mut usize) -> Option<u16> {
     if *index > (buffer.len() - 2) {
         None
     } else {
@@ -455,7 +468,7 @@ pub fn read_u2(buffer: &Vec<u8>, index: &mut usize) -> Option<u16> {
     }
 }
 
-pub fn read_u4(buffer: &Vec<u8>, index: &mut usize) -> Option<u32> {
+fn read_u4(buffer: &Vec<u8>, index: &mut usize) -> Option<u32> {
     if *index > (buffer.len() - 4) {
         None
     } else {
@@ -468,23 +481,23 @@ pub fn read_u4(buffer: &Vec<u8>, index: &mut usize) -> Option<u32> {
     }
 }
 
-pub fn read_u8(buffer: &Vec<u8>, index: &mut usize) -> Option<u64> {
+fn read_u8(buffer: &Vec<u8>, index: &mut usize) -> Option<u64> {
     let high: u64 = read_u4(buffer, index).expect("Expected Integer") as u64;
     let low: u64 = read_u4(buffer, index).expect("Expected Integer") as u64;
     Some((high << 32) | low)
 }
 
-pub fn read_f4(buffer: &Vec<u8>, index: &mut usize) -> Option<f32> {
+fn read_f4(buffer: &Vec<u8>, index: &mut usize) -> Option<f32> {
     let int = read_u4(buffer, index).expect("Expected Integer");
     Some(f32::from_bits(int))
 }
 
-pub fn read_f8(buffer: &Vec<u8>, index: &mut usize) -> Option<f64> {
+fn read_f8(buffer: &Vec<u8>, index: &mut usize) -> Option<f64> {
     let int = read_u8(buffer, index).expect("Expected Long");
     Some(f64::from_bits(int))
 }
 
-pub fn read_length_and_utf8(buffer: &Vec<u8>, index: &mut usize) -> Option<String> {
+fn read_length_and_utf8(buffer: &Vec<u8>, index: &mut usize) -> Option<String> {
     if *index > buffer.len() - 1 {
         return None;
     }
@@ -498,7 +511,7 @@ pub fn read_length_and_utf8(buffer: &Vec<u8>, index: &mut usize) -> Option<Strin
 }
 
 
-pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> ConstantPoolEntry {
+fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> ConstantPoolEntry {
     let tag = read_u1(buffer, index).expect("Expected Constant Pool Tag");
     match tag {
         7 => ConstantPoolEntry::Class { name_index: read_u2(buffer, index).expect("Expected Name Index") },
@@ -551,7 +564,7 @@ pub fn read_constant_pool_entry(buffer: &Vec<u8>, index: &mut usize) -> Constant
     }
 }
 
-pub fn read_class(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Option<Class> {
+fn read_class(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantPool) -> Option<Class> {
     let this_class_index = read_u2(buffer, index).expect("Expected This Class Index") as usize;
     if let ConstantPoolEntry::Class { name_index } = constant_pool.get(this_class_index - 1).unwrap() {
         if let ConstantPoolEntry::Utf8Info { value } = constant_pool.get(*name_index as usize - 1).unwrap() {
@@ -566,9 +579,9 @@ pub fn read_class(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantP
     }
 }
 
-pub fn read_access_flags(buffer: &Vec<u8>, index: &mut usize) -> Vec<AccessFlag> {
+fn read_access_flags(buffer: &Vec<u8>, index: &mut usize) -> Vec<AccessFlag> {
     let access_flags_mask = read_u2(buffer, index).expect("Expected Access Flags");
-    return parse_access_flags(access_flags_mask);
+    parse_access_flags(access_flags_mask)
 }
 
 fn parse_access_flags(mask: u16) -> Vec<AccessFlag> {

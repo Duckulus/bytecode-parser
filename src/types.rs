@@ -1,3 +1,18 @@
+#[derive(Debug)]
+pub struct ClassFile<'a> {
+    pub magic: u32,
+    pub minor_version: u16,
+    pub major_version: u16,
+    pub constant_pool: &'a Vec<ConstantPoolEntry>,
+    pub access_flags: Vec<AccessFlag>,
+    pub this_class: Class,
+    pub super_class: Class,
+    pub interfaces: Vec<Class>,
+    pub fields: Vec<Field<'a>>,
+    pub methods: Vec<Method<'a>>,
+    pub attributes: Vec<Attribute<'a>>,
+}
+
 pub type ConstantPool = Vec<ConstantPoolEntry>;
 
 #[derive(Debug)]
@@ -72,11 +87,11 @@ impl Field<'_> {
             "Z" => String::from("boolean"),
             "S" => String::from("short"),
             _ => {
-                if string.starts_with("L") {
-                    string.clone()[1..string.len() - 1].replace("/", ".")
-                } else if string.starts_with("[") {
+                if string.starts_with('L') {
+                    string.clone()[1..string.len() - 1].replace('/', ".")
+                } else if string.starts_with('[') {
                     let mut copy = string.clone();
-                    while copy.starts_with("[") {
+                    while copy.starts_with('[') {
                         copy.remove(0);
                         copy = Field::type_name_from_string(&copy);
                         copy.push_str("[]");
@@ -151,7 +166,7 @@ pub enum Attribute<'a> {
     },
     SourceFile { source_file: String },
     NestMembers { classes: Vec<Class> },
-    Unimplemented // TODO remove
+    Unimplemented, // TODO remove
 }
 
 #[derive(Debug)]
