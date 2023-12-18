@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 
-use crate::types::{Annotation, Attribute, Class, ConstantPool, ConstantPoolEntry, ElementValue, ElementValuePair, ExceptionHandler, Field, FieldFlag, LineNumber, Method, MethodFlag};
+use crate::types::{AccessFlag, Annotation, Attribute, Class, ConstantPool, ConstantPoolEntry, ElementValue, ElementValuePair, ExceptionHandler, Field, FieldFlag, LineNumber, Method, MethodFlag};
 
 pub fn read_file(filename: &String) -> Vec<u8> {
     let mut f = File::open(filename).expect("Could not read file");
@@ -32,7 +32,6 @@ pub fn read_constant_pool(buffer: &Vec<u8>, index: &mut usize) -> Vec<ConstantPo
 
             constant_pool.push(entry);
         }
-        println!("{}. {:?}", _i + 1, constant_pool.get(_i).unwrap());
     }
     constant_pool
 }
@@ -545,4 +544,38 @@ pub fn read_class(buffer: &Vec<u8>, index: &mut usize, constant_pool: &ConstantP
     } else {
         None
     }
+}
+
+pub fn read_access_flags(buffer: &Vec<u8>, index: &mut usize) -> Vec<AccessFlag> {
+    let access_flags_mask = read_u2(buffer, index).expect("Expected Access Flags");
+    return parse_access_flags(access_flags_mask);
+}
+
+fn parse_access_flags(mask: u16) -> Vec<AccessFlag> {
+    let mut flags: Vec<AccessFlag> = Vec::new();
+    if mask & 0x0001 != 0 {
+        flags.push(AccessFlag::AccPublic);
+    }
+    if mask & 0x0010 != 0 {
+        flags.push(AccessFlag::AccFinal);
+    }
+    if mask & 0x0020 != 0 {
+        flags.push(AccessFlag::AccSuper);
+    }
+    if mask & 0x0200 != 0 {
+        flags.push(AccessFlag::AccInterface);
+    }
+    if mask & 0x0400 != 0 {
+        flags.push(AccessFlag::AccAbstract);
+    }
+    if mask & 0x1000 != 0 {
+        flags.push(AccessFlag::AccSynthetic);
+    }
+    if mask & 0x2000 != 0 {
+        flags.push(AccessFlag::AccAnnotation);
+    }
+    if mask & 0x4000 != 0 {
+        flags.push(AccessFlag::AccEnum);
+    }
+    flags
 }

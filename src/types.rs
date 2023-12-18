@@ -19,9 +19,33 @@ pub enum ConstantPoolEntry {
     Empty, // Used to represent the empty space after a Double or a Long
 }
 
+impl ConstantPoolEntry {
+    pub fn const_value_as_string(&self) -> Option<String> {
+        match self {
+            ConstantPoolEntry::IntegerInfo { value } => Some(value.to_string()),
+            ConstantPoolEntry::LongInfo { value } => Some(value.to_string()),
+            ConstantPoolEntry::FloatInfo { value } => Some(value.to_string()),
+            ConstantPoolEntry::DoubleInfo { value } => Some(value.to_string()),
+            _ => None
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Class {
     pub name: String,
+}
+
+#[derive(Debug)]
+pub enum AccessFlag {
+    AccPublic,
+    AccFinal,
+    AccSuper,
+    AccInterface,
+    AccAbstract,
+    AccSynthetic,
+    AccAnnotation,
+    AccEnum,
 }
 
 #[derive(Debug)]
@@ -30,6 +54,40 @@ pub struct Field<'a> {
     pub name: String,
     pub descriptor: String,
     pub attributes: Vec<Attribute<'a>>,
+}
+
+impl Field<'_> {
+    pub fn type_name(&self) -> String {
+        Field::type_name_from_string(&self.descriptor)
+    }
+
+    fn type_name_from_string(string: &String) -> String {
+        match string.as_str() {
+            "B" => String::from("byte"),
+            "C" => String::from("char"),
+            "D" => String::from("double"),
+            "F" => String::from("float"),
+            "I" => String::from("int"),
+            "J" => String::from("long"),
+            "Z" => String::from("boolean"),
+            "S" => String::from("short"),
+            _ => {
+                if string.starts_with("L") {
+                    string.clone()[1..string.len() - 1].replace("/", ".")
+                } else if string.starts_with("[") {
+                    let mut copy = string.clone();
+                    while copy.starts_with("[") {
+                        copy.remove(0);
+                        copy = Field::type_name_from_string(&copy);
+                        copy.push_str("[]");
+                    }
+                    copy
+                } else {
+                    String::new()
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

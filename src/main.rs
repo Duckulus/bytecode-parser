@@ -1,6 +1,7 @@
 use std::env;
 
 use crate::reader::*;
+use crate::types::{Attribute, ConstantPool, Field, FieldFlag, Method, MethodFlag};
 
 mod reader;
 mod types;
@@ -23,10 +24,10 @@ fn main() {
     println!("Class Version {major}.{minor}");
 
     let constant_pool = read_constant_pool(&data, &mut index);
-    println!("constant pool count: {}", constant_pool.len() + 1);
+    print_constant_pool(&constant_pool);
 
-    let access_flags_mask = read_u2(&data, &mut index).expect("Expected Access Flags");
-    println!("access flags: {}", parse_access_flags(access_flags_mask).join(", "));
+    let access_flags = read_access_flags(&data, &mut index);
+    println!("access flags: {:?}", access_flags);
 
     let this_class = read_class(&data, &mut index, &constant_pool).expect("Expected This Class");
     println!("class name: {}", this_class.name);
@@ -36,13 +37,13 @@ fn main() {
 
     let interfaces = read_interfaces(&data, &mut index, &constant_pool);
     let interface_names: Vec<String> = interfaces.iter().map(|class| class.name.clone()).collect();
-    println!("implements {} interfaces: {{{}}}", interfaces.len(), interface_names.join(", "));
+    println!("implemented interfaces ({}): {{{}}}", interfaces.len(), interface_names.join(", "));
 
     let fields = read_fields(&data, &mut index, &constant_pool);
-    println!("fields: {:#?}", fields);
+    print_fields(&fields);
 
     let methods = read_methods(&data, &mut index, &constant_pool);
-    println!("methods: {:#?}", methods);
+    print_methods(&methods);
 }
 
 fn parse_args() -> String {
@@ -50,34 +51,92 @@ fn parse_args() -> String {
     args.get(1).expect("Expeced 1 argument but got 0").to_owned()
 }
 
-fn parse_access_flags(mask: u16) -> Vec<&'static str> {
-    let mut flags: Vec<&str> = Vec::new();
-    if mask & 0x0001 != 0 {
-        flags.push("public");
+fn print_constant_pool(constant_pool: &ConstantPool) {
+    println!("constant pool ({}):", constant_pool.len() + 1);
+    for (i, entry) in constant_pool.iter().enumerate() {
+        println!("  #{:02} {:?}", i + 1, entry);
     }
-    if mask & 0x0010 != 0 {
-        flags.push("final");
-    }
-    if mask & 0x0020 != 0 {
-        flags.push("super");
-    }
-    if mask & 0x0200 != 0 {
-        flags.push("interface");
-    }
-    if mask & 0x0400 != 0 {
-        flags.push("abstract");
-    }
-    if mask & 0x1000 != 0 {
-        flags.push("synthetic");
-    }
-    if mask & 0x2000 != 0 {
-        flags.push("annotation");
-    }
-    if mask & 0x4000 != 0 {
-        flags.push("enum");
-    }
-    flags
 }
+
+fn print_fields(fields: &Vec<Field>) {
+    println!("fields ({}):", fields.len());
+    for field in fields {
+        let mut line = String::from("  ");
+        if field.access_flags.iter().any(|flag| matches!(flag, FieldFlag::AccPublic)) {
+            line.push_str("public ")
+        } else if field.access_flags.iter().any(|flag| matches!(flag, FieldFlag::AccPrivate)) {
+            line.push_str("private ")
+        } else if field.access_flags.iter().any(|flag| matches!(flag, FieldFlag::AccProtected)) {
+            line.push_str("public ")
+        }
+        if field.access_flags.iter().any(|flag| matches!(flag, FieldFlag::AccStatic)) {
+            line.push_str("static ")
+        }
+        if field.access_flags.iter().any(|flag| matches!(flag, FieldFlag::AccFinal)) {
+            line.push_str("final ")
+        }
+
+        line.push_str(field.type_name().as_str());
+        line.push_str(" ");
+        line.push_str(field.name.as_str());
+
+        let constant_value_attr = field.attributes.iter().find(|attr| matches!(attr, Attribute::ConstantValue {value: _}));
+        if let Some(Attribute::ConstantValue { value }) = constant_value_attr {
+            let const_value = value.const_value_as_string();
+            if let Some(value) = const_value {
+                line.push_str(" = ");
+                if field.descriptor == "Z" {
+                    line.push_str(if value == "1" { "true" } else { "false" })
+                } else {
+                    line.push_str(value.as_str());
+                }
+            }
+        }
+
+        println!("{line}")
+    }
+}
+
+fn print_methods(methods: &Vec<Method>) {
+    println!("methods ({}):", methods.len());
+    for method in methods {
+        let mut line = String::from("  ");
+        if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccPublic)) {
+            line.push_str("public ")
+        } else if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccPrivate)) {
+            line.push_str("private ")
+        }
+        else if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccProtected)) {
+            line.push_str("protected ")
+        }
+        if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccAbstract)) {
+            line.push_str("abstract ")
+        }
+        if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccStatic)) {
+            line.push_str("static ")
+        }
+        if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccFinal)) {
+            line.push_str("final ")
+        }
+        if method.access_flags.iter().any(|flag| matches!(flag, MethodFlag::AccSynchronized)) {
+            line.push_str("synchronized ")
+        }
+        line.push_str(method.descriptor.as_str());
+        line.push_str(" ");
+        line.push_str(method.name.as_str());
+
+        let exception_attr = method.attributes.iter().find(|attr| matches!(attr, Attribute::Exceptions {exceptions: _}));
+        if let Some(Attribute::Exceptions {exceptions}) = exception_attr {
+            let exceptions: Vec<String> = exceptions.iter().map(|e| e.name.clone()).collect();
+            if !exceptions.is_empty() {
+                line.push_str(" throws ");
+                line.push_str(exceptions.join(", ").as_str())
+            }
+        }
+        println!("{line}");
+    }
+}
+
 
 
 
