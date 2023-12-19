@@ -1,8 +1,9 @@
 use std::env;
+use std::process::exit;
 
 use crate::io::read_bytes_from_file;
 use crate::reader::*;
-use crate::types::{Attribute, Class, ConstantPool, Field, FieldFlag, Method, MethodFlag};
+use crate::types::{Attribute, Class, ConstantPool, Field, FieldFlag, Method, MethodFlag, ParsingError};
 
 mod reader;
 mod types;
@@ -20,6 +21,13 @@ fn main() {
     let mut constant_pool: ConstantPool = Vec::new();
 
     let class_file = read_class_file(&data, &mut constant_pool);
+
+    if let Err(ParsingError { at_byte, message }) = class_file {
+        eprintln!("Error while parsing class file at byte {}: {}", at_byte, message);
+        exit(1);
+    }
+
+    let class_file = class_file.unwrap();
 
     println!("magic: 0x{:X}", class_file.magic);
 
@@ -44,6 +52,8 @@ fn main() {
     print_fields(&class_file.fields);
 
     print_methods(&class_file.methods);
+
+    println!("successfully parsed {} bytes", class_file.parsed_bytes);
 }
 
 fn parse_args() -> String {

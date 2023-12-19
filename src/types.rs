@@ -11,6 +11,19 @@ pub struct ClassFile<'a> {
     pub fields: Vec<Field<'a>>,
     pub methods: Vec<Method<'a>>,
     pub attributes: Vec<Attribute<'a>>,
+    pub parsed_bytes: usize
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsingError {
+    pub at_byte: usize,
+    pub message: String,
+}
+
+impl ParsingError {
+    pub fn new(at_byte: usize, msg: &str) -> ParsingError {
+        ParsingError { at_byte, message: msg.to_string() }
+    }
 }
 
 pub type ConstantPool = Vec<ConstantPoolEntry>;
