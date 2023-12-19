@@ -2,7 +2,7 @@ use std::env;
 
 use crate::io::read_bytes_from_file;
 use crate::reader::*;
-use crate::types::{Attribute, ConstantPool, Field, FieldFlag, Method, MethodFlag};
+use crate::types::{Attribute, Class, ConstantPool, Field, FieldFlag, Method, MethodFlag};
 
 mod reader;
 mod types;
@@ -21,7 +21,7 @@ fn main() {
 
     let class_file = read_class_file(&data, &mut constant_pool);
 
-    println!("magic: {:X}", class_file.magic);
+    println!("magic: 0x{:X}", class_file.magic);
 
     println!("Class Version {}.{}", class_file.major_version, class_file.minor_version);
 
@@ -31,10 +31,15 @@ fn main() {
 
     println!("class name: {}", class_file.this_class.name);
 
-    println!("super class name: {}", class_file.super_class.name);
+    println!("super class name: {}", class_file.super_class.name.replace('/', "."));
 
-    let interface_names: Vec<String> = class_file.interfaces.iter().map(|class| class.name.clone()).collect();
-    println!("implemented interfaces ({}): {{{}}}", class_file.interfaces.len(), interface_names.join(", "));
+    for attr in class_file.attributes {
+        if let Attribute::SourceFile { source_file } = attr {
+            println!("source file: {}", source_file);
+        }
+    }
+
+    print_interfaces(&class_file.interfaces);
 
     print_fields(&class_file.fields);
 
@@ -131,7 +136,9 @@ fn print_methods(methods: &Vec<Method>) {
     }
 }
 
-
-
-
-
+fn print_interfaces(interfaces: &Vec<Class>) {
+    println!("implemented interfaces ({}):", interfaces.len());
+    interfaces.iter().map(|class| class.name.replace('/', ".")).for_each(|name| {
+        println!("  {}", name);
+    });
+}
